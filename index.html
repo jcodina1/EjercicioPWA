@@ -72,6 +72,12 @@ main{max-width:560px;margin:0 auto;padding:16px 16px 110px}
 .pick{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px}
 .pick button{border:0;border-radius:10px;padding:10px 2px;background:var(--pc);color:var(--pt);font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:15px;line-height:1.1}
 .pick button[aria-pressed="true"]{outline:3px solid var(--ink);outline-offset:2px}
+.exlist{margin-top:14px;border-left:4px solid var(--pc);border-radius:4px}
+.exlist details:first-child{border-top:0}
+.exlist summary{padding:10px 12px}
+.exlist summary small{display:block;font-weight:400;font-size:13px;color:var(--muted)}
+.exlist .how{padding:0 12px 14px}
+.exlist .tgt{margin:0 0 10px;color:var(--muted);font-size:14px}
 
 /* Weight */
 .wrow{display:flex;gap:8px;align-items:center}
@@ -104,13 +110,21 @@ details{border-top:1px solid var(--line)}
 summary{padding:10px 14px;font-weight:600;list-style:none;display:flex;justify-content:space-between;align-items:center}
 summary::-webkit-details-marker{display:none}
 summary::after{content:"+";font-size:22px;line-height:1;color:var(--muted)}
-details[open] summary::after{content:"–"}
+details[open]>summary::after{content:"–"}
 .how{padding:0 14px 14px;font-size:15px}
 .how ol{margin:0 0 10px;padding-left:20px}
 .how li{margin-bottom:6px}
 .how h4{margin:10px 0 4px;font-size:15px}
 .how ul{margin:0 0 10px;padding-left:20px;color:var(--muted)}
 .how a{color:var(--blue);font-weight:600}
+.demo{display:grid;margin:0 0 12px;border-radius:12px;overflow:hidden;background:var(--surface2)}
+.demo img{grid-area:1/1;width:100%;height:auto;aspect-ratio:3/2;object-fit:cover;display:block}
+.demo img+img{animation:demo 2.6s ease-in-out infinite}
+.ex-demo{padding:0 14px 12px}.ex-demo .demo{margin:0}
+@keyframes demo{0%,38%{opacity:0}50%,88%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.demo{grid-template-columns:1fr 1fr;gap:2px}.demo img+img{grid-area:1/2;animation:none}}
+.how a.yt{display:inline-flex;align-items:center;gap:8px;margin-top:4px;padding:10px 14px;border-radius:10px;background:var(--surface2);text-decoration:none}
+.how a.yt::before{content:"";width:0;height:0;border-style:solid;border-width:7px 0 7px 12px;border-color:transparent transparent transparent currentColor}
 .sets{padding:6px 14px 14px}
 .set{display:grid;grid-template-columns:28px 1fr 1fr 48px;gap:8px;align-items:center;margin:6px 0}
 .set .n{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:20px;color:var(--muted);text-align:center}
@@ -150,6 +164,10 @@ body.training nav{display:none}
 .guide h2{margin:0 0 8px}
 .lib-sec h3{font-size:20px;margin:18px 0 6px}
 .lib .ex{border-left-width:6px}
+#ask{border:0;border-radius:16px;padding:18px;width:min(340px,calc(100% - 32px));background:var(--surface);color:var(--ink)}
+#ask::backdrop{background:rgba(0,0,0,.45)}
+#ask p{margin:0 0 16px;font-size:17px;font-weight:600}
+#ask .btn{font-size:18px;padding:12px}
 .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:600;z-index:30;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
 .sync{font-size:13px;color:var(--muted);text-align:center;margin-top:18px}
@@ -164,7 +182,7 @@ body.training nav{display:none}
     <button class="btn" id="startBtn">Empezar sesión</button>
     <details class="panel" style="padding:0" id="pickWrap">
       <summary style="padding:14px 16px">Hacer otra sesión hoy</summary>
-      <div style="padding:0 16px 16px"><div class="pick" id="pick"></div></div>
+      <div style="padding:0 16px 16px"><div class="pick" id="pick"></div><div class="exlist" id="pickList"></div></div>
     </details>
 
     <div class="panel">
@@ -227,6 +245,7 @@ body.training nav{display:none}
       <input type="file" id="bkFile" accept="application/json,.json" hidden>
     </div>
     <div class="lib" id="lib"></div>
+    <p class="meta">Fotos de los ejercicios: <a href="https://github.com/yuhonas/free-exercise-db" target="_blank" rel="noopener">free-exercise-db</a> (dominio público).</p>
   </section>
 </main>
 
@@ -243,6 +262,7 @@ body.training nav{display:none}
   <button data-v="guia">Guía</button>
 </nav>
 <div class="toast" id="toast" role="status"></div>
+<dialog id="ask"><p id="askMsg"></p><div class="row"><button class="btn ghost" id="askNo">Cancelar</button><button class="btn" id="askYes">Sí</button></div></dialog>
 
 <script>
 /* ---------- Ejercicios ---------- */
@@ -406,6 +426,15 @@ function suggestUp(key,range){
   const t=topRep(range); return l.length>0 && l.every(x=>(+x.reps||0)>=t);
 }
 let toastT; function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("on"),2200);}
+// Confirmación propia: confirm() no aparece en algunos navegadores dentro de apps y devuelve false
+function ask(msg,yes="Sí"){
+  const d=$("#ask"); $("#askMsg").textContent=msg; $("#askYes").textContent=yes;
+  return new Promise(res=>{
+    const done=v=>{d.close();$("#askYes").onclick=$("#askNo").onclick=d.oncancel=null;res(v);};
+    $("#askYes").onclick=()=>done(true); $("#askNo").onclick=()=>done(false); d.oncancel=e=>{e.preventDefault();done(false);};
+    d.showModal();
+  });
+}
 function plateVars(c){return `--pc:var(--${c});--pt:var(--on-${c})`;}
 
 /* ---------- Render HOY ---------- */
@@ -415,6 +444,9 @@ function renderHoy(){
   $("#hero").setAttribute("style",plateVars(s.c));
   $("#hero").innerHTML = `<div class="plate" aria-hidden="true"><span>${s.n.split(" ")[1]||"5"}</span><small>${s.f}</small></div>
     <div><p>${chosen?"Elegiste hoy":"Te toca"}</p><h1>${s.n}</h1><p>${s.ex.length} ejercicios + cardio · ~90 min</p></div>`;
+  $("#pickList").setAttribute("style",plateVars(s.c));
+  $("#pickList").innerHTML = s.ex.map(([k,n,r])=>`<details><summary><span>${esc(EX[k].n)}<small>${n} × ${r}${EX[k].unit==="s"?" s":""}</small></span></summary>
+    <div class="how"><p class="tgt">${esc(EX[k].m)}</p>${howBody(k)}</div></details>`).join("");
   $("#pick").innerHTML = S.map(x=>`<button style="${plateVars(x.c)}" aria-pressed="${x.id===sid}" data-sid="${x.id}">${x.n}</button>`).join("");
   // semana
   const wk = sessions.filter(x=>x.date>=weekStart());
@@ -451,13 +483,20 @@ function renderWeight(){
 }
 
 /* ---------- Bloque de ejercicio (sesión y guía) ---------- */
-function howHTML(key){
+// Dos fotos (inicio y final del movimiento) que se alternan como un GIF
+function demoHTML(key){
+  const n=esc(EX[key].n);
+  return `<div class="demo"><img src="img/ex/${key}-0.jpg" alt="${n}: posición inicial" loading="lazy" width="850" height="567"><img src="img/ex/${key}-1.jpg" alt="${n}: posición final" loading="lazy" width="850" height="567"></div>`;
+}
+function howBody(key,withDemo=true){
   const x=EX[key];
-  return `<details><summary>Cómo hacerlo bien</summary><div class="how">
+  return `${withDemo?demoHTML(key):""}
     <ol>${x.p.map(t=>`<li>${esc(t)}</li>`).join("")}</ol>
     <h4>Errores comunes</h4><ul>${x.e.map(t=>`<li>${esc(t)}</li>`).join("")}</ul>
-    <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(x.q)}" target="_blank" rel="noopener">Ver videos de la técnica en YouTube</a>
-  </div></details>`;
+    <a class="yt" href="https://www.youtube.com/results?search_query=${encodeURIComponent(x.q)}" target="_blank" rel="noopener">Ver videos de la técnica en YouTube</a>`;
+}
+function howHTML(key,withDemo=true){
+  return `<details><summary>Cómo hacerlo bien</summary><div class="how">${howBody(key,withDemo)}</div></details>`;
 }
 
 /* ---------- Sesión en curso ---------- */
@@ -479,7 +518,8 @@ function renderSession(){
       <div class="ex-top"><h3>${x.n}</h3><div class="tgt">${x.m}</div>
       <span class="badge">${active.sets[k].length} × ${r}${x.unit==="s"?" s":""}${k==="bulgara"?" por pierna":""}${rest?` · descanso ${rest>=120?rest/60+" min":rest+" s"}`:""}</span>
       ${up?` <span class="badge up">Sube peso</span>`:""}</div>
-      ${howHTML(k)}
+      <div class="ex-demo">${demoHTML(k)}</div>
+      ${howHTML(k,false)}
       <div class="sets"><div class="labels"><span></span><span>kg</span><span>${unit}</span><span></span></div>`;
     active.sets[k].forEach((st,i)=>{
       const p=last&&last[i]?last[i]:(last?last[last.length-1]:null);
@@ -504,7 +544,7 @@ $("#v-ses").addEventListener("input",e=>{
 });
 $("#v-ses").addEventListener("click",async e=>{
   const t=e.target;
-  if(t.id==="cancelS"){ if(confirm("¿Salir sin guardar esta sesión?")){active=null;LS.set("gym.active",null);document.body.classList.remove("training");show("hoy");} return;}
+  if(t.id==="cancelS"){ if(await ask("¿Salir sin guardar esta sesión?","Salir")){active=null;LS.set("gym.active",null);document.body.classList.remove("training");show("hoy");} return;}
   if(t.id==="finishS"){ await finish(); return;}
   if(t.classList.contains("chk")){
     const set=t.closest(".set"), ex=t.closest(".ex"), k=ex.dataset.k, i=+set.dataset.i, st=active.sets[k][i];
@@ -522,7 +562,7 @@ $("#v-ses").addEventListener("click",async e=>{
 async function finish(){
   const sets={};
   for(const k in active.sets){const d=active.sets[k].filter(x=>x.done||x.reps!=="").map(x=>({kg:x.kg===""?"":+x.kg,reps:x.reps===""?"":+x.reps})); if(d.length) sets[k]=d;}
-  if(!Object.keys(sets).length && !active.cardio){ if(!confirm("No registraste ninguna serie. ¿Guardar igual?")) return; }
+  if(!Object.keys(sets).length && !active.cardio){ if(!await ask("No registraste ninguna serie. ¿Guardar igual?","Guardar")) return; }
   const s={id:"s"+active.start,sid:active.sid,date:active.start,sets,cardio:active.cardio===""?"":+active.cardio,re:active.re};
   await store.saveSession(s);
   active=null; LS.set("gym.active",null); stopTimer();
@@ -552,7 +592,7 @@ function renderHist(){
 }
 $("#histList").addEventListener("click",async e=>{
   const id=e.target.dataset&&e.target.dataset.del; if(!id) return;
-  if(confirm("¿Borrar esta sesión del historial?")){await store.delSession(id);renderAll();toast("Sesión borrada");}
+  if(await ask("¿Borrar esta sesión del historial?","Borrar")){await store.delSession(id);renderAll();toast("Sesión borrada");}
 });
 
 /* ---------- Guía: biblioteca ---------- */
@@ -601,7 +641,7 @@ $("#bkFile").onchange=async e=>{
   try{
     const j=JSON.parse(await f.text());
     if(!Array.isArray(j.sessions)||!Array.isArray(j.weights)) throw 0;
-    if(!confirm(`¿Restaurar ${j.sessions.length} sesiones y ${j.weights.length} mediciones? Reemplaza lo que hay en este teléfono.`)) return;
+    if(!await ask(`¿Restaurar ${j.sessions.length} sesiones y ${j.weights.length} mediciones? Reemplaza lo que hay en este teléfono.`,"Restaurar")) return;
     sessions=j.sessions.sort((a,b)=>a.date-b.date); weights=j.weights.sort((a,b)=>a.d<b.d?-1:1);
     LS.set("gym.sessions",sessions); LS.set("gym.weights",weights); LS.set("gym.seeded",true);
     renderAll(); toast("Respaldo restaurado");
